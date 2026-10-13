@@ -19,11 +19,11 @@ const postJSON = (url, body) =>
 
 async function load() {
   const rows = await getJSON(`/api/users/${$("user").value}/queue/`);
-  // TODO Layer 5: render `rows` into #rows, each with an Approve button that calls approve()
+  // TODO Layer 6: render `rows` into #rows, each with an Approve button that calls approve()
 }
 
 async function approve(invoiceId) {
-  // TODO Layer 5: POST /api/invoices/<id>/approve/ as the selected user;
+  // TODO Layer 6: POST /api/invoices/<id>/approve/ as the selected user;
   // remove the row on success, show the error in #msg on failure
 }
 

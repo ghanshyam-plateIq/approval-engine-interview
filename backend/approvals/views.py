@@ -37,36 +37,36 @@ def invoice_row(invoice: Invoice) -> dict:
     return {"id": invoice.id, "vendor": invoice.vendor, "location": invoice.location, "total": money(invoice.total)}
 
 
-# ---------------------------------------------------------------- Layer 1
+# ---------------------------------------------------------------- Given
 
 
 @require_GET
 def invoice_policies(request, invoice_id):
+    """GIVEN - handy for debugging: the non-dependent policies that match."""
     invoice = get_object_or_404(Invoice, pk=invoice_id)
-    # TODO Layer 1: {"policy_ids": [...]} using engine.applicable_policies(invoice, include_dependents=False)
-    return JsonResponse({"error": "not implemented"}, status=501)
+    return JsonResponse({"policy_ids": [p.id for p in engine.applicable_policies(invoice, include_dependents=False)]})
 
 
-# ---------------------------------------------------------------- Layer 2
+# ---------------------------------------------------------------- Layer 1
 
 
 @require_POST
 @transaction.atomic
 def submit(request, invoice_id):
     invoice = get_object_or_404(Invoice.objects.select_for_update(), pk=invoice_id)
-    # TODO Layer 2: 409 unless draft, then engine.apply_policies(invoice)
+    # TODO Layer 1: 409 unless draft, then engine.apply_policies(invoice)
     return JsonResponse(serialize(invoice))
 
 
 @require_GET
 def queue(request, username):
     user = get_object_or_404(User, username=username)
-    # TODO Layer 2: invoices where `user` has an active approval, each once, total desc then id
+    # TODO Layer 1: invoices where `user` has an active approval, each once, total desc then id
     invoices = Invoice.objects.none()
     return JsonResponse([invoice_row(i) for i in invoices], safe=False)
 
 
-# ---------------------------------------------------------------- Layer 3
+# ---------------------------------------------------------------- Layer 2 + 3
 
 
 @require_POST
@@ -74,21 +74,30 @@ def queue(request, username):
 def approve(request, invoice_id):
     invoice = get_object_or_404(Invoice.objects.select_for_update(), pk=invoice_id)
     user = User.objects.filter(username=body(request).get("user")).first()
-    # TODO Layer 3: 409 / 403 rules, then engine.approve(invoice, user)
+    # TODO Layer 2: 409 / 403 rules, then engine.approve(invoice, user)
     return JsonResponse(serialize(invoice))
 
 
-# ---------------------------------------------------------------- Layer 4
+@require_POST
+@transaction.atomic
+def unapprove(request, invoice_id):
+    invoice = get_object_or_404(Invoice.objects.select_for_update(), pk=invoice_id)
+    user = User.objects.filter(username=body(request).get("user")).first()
+    # TODO Layer 3: 409 / 403 rules, then engine.unapprove(invoice, user)
+    return JsonResponse(serialize(invoice))
+
+
+# ---------------------------------------------------------------- Layer 5
 
 
 @require_GET
 def approver_load(request):
-    # TODO Layer 4: one query, every approver -> {"approver", "pending_invoices", "pending_amount"}
+    # TODO Layer 5: one query, every approver -> {"approver", "pending_invoices", "pending_amount"}
     rows = []
     return JsonResponse(rows, safe=False)
 
 
-# ---------------------------------------------------------------- Layer 5
+# ---------------------------------------------------------------- Layer 6 (frontend)
 
 
 @require_GET
@@ -100,7 +109,7 @@ def inbox(request):
     return render(request, "inbox.html")
 
 
-# ---------------------------------------------------------------- Detail (+ Layer 6)
+# ---------------------------------------------------------------- Detail (+ Layer 4)
 
 
 @require_http_methods(["GET", "PATCH"])
@@ -115,5 +124,5 @@ def invoice_detail(request, invoice_id):
         if "total" in data:
             invoice.total = Decimal(data["total"])
         invoice.save()
-        # TODO Layer 6: re-evaluate approvals when the invoice isn't a draft
+        # TODO Layer 4: re-apply policies when the invoice isn't a draft
     return JsonResponse(serialize(invoice))

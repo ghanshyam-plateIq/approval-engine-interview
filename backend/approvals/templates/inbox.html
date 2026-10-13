@@ -1,8 +1,38 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Approver Inbox</title></head>
+<head><meta charset="utf-8"><title>Approver Inbox</title>
+<style>body{font-family:system-ui;margin:2rem}table{border-collapse:collapse}td,th{padding:.4rem .8rem;border-bottom:1px solid #ddd}.err{color:#b00}</style>
+</head>
 <body>
   <h1>Approver Inbox</h1>
-  <!-- Layer 5: your interviewer will explain what goes here. Plain HTML + JS (fetch) is fine. -->
+  <label>Approver <select id="user"></select></label>
+  <p id="msg" class="err" role="alert"></p>
+  <table>
+    <thead><tr><th>#</th><th>Vendor</th><th>Location</th><th>Total</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+<script>
+const $ = (id) => document.getElementById(id);
+const getJSON = async (url) => (await fetch(url)).json();
+const postJSON = (url, body) =>
+  fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+
+async function load() {
+  const rows = await getJSON(`/api/users/${$("user").value}/queue/`);
+  // TODO Layer 5: render `rows` into #rows, each with an Approve button that calls approve()
+}
+
+async function approve(invoiceId) {
+  // TODO Layer 5: POST /api/invoices/<id>/approve/ as the selected user;
+  // remove the row on success, show the error in #msg on failure
+}
+
+(async () => {
+  const users = await getJSON("/api/users/");
+  $("user").innerHTML = users.map((u) => `<option>${u}</option>`).join("");
+  $("user").onchange = load;
+  load();
+})();
+</script>
 </body>
 </html>

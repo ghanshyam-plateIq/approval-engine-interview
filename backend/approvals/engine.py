@@ -74,7 +74,7 @@ def applicable_policies(invoice, include_dependents=True):
 # ============================================================== YOUR JOB: the lifecycle
 #
 # Approval.state is one of:
-#   waiting  - its policy depends on a parent policy that isn't satisfied yet
+#   waiting  - disabled: its policy depends on a parent policy that isn't satisfied yet (Layer 4)
 #   active   - in the approver's queue, can be approved
 #   approved - approved by that user
 #   inactive - its policy is already satisfied by other approvers
@@ -84,32 +84,34 @@ def applicable_policies(invoice, include_dependents=True):
 def apply_policies(invoice: Invoice) -> None:
     """Create approval rows for every applicable policy, then set states + invoice status.
 
-    Layer 1: one Approval per (policy, approver) for applicable_policies(invoice).
-    Layer 4: keep / add / delete rows so they match the policies that apply *now*.
+    Layer 2: one Approval per (policy, approver) for applicable_policies(invoice, include_dependents=False).
+    Layer 4: include dependent policies - their rows start disabled (`waiting`).
+    Layer 7: keep / add / delete rows so they match the policies that apply *now*.
     """
-    # TODO Layer 1
+    # TODO Layer 2
     raise NotImplementedError
 
 
 def recompute(invoice: Invoice) -> None:
     """Derive every non-approved row's state, and the invoice status, from what's been approved.
 
-    Layer 1: dependents' rows are `waiting`, everything else `active`; no rows -> invoice approved.
-    Layer 2: satisfied policies' open rows -> `inactive`; dependents activate; all satisfied -> approved.
+    Layer 2: rows `active`; no rows -> invoice approved, otherwise pending.
+    Layer 3: satisfied policies' open rows -> `inactive`; all policies satisfied -> invoice approved.
+    Layer 4: a dependent's rows stay `waiting` until all its parent policies are satisfied.
     """
-    # TODO Layer 1 / 2
+    # TODO Layer 2 / 3 / 4
     raise NotImplementedError
 
 
 @transaction.atomic
 def approve(invoice: Invoice, user) -> bool:
-    """Approve every active approval this user holds on the invoice. False if none. (Layer 2)"""
-    # TODO Layer 2
+    """Approve every active approval this user holds on the invoice. False if none. (Layer 3)"""
+    # TODO Layer 3
     raise NotImplementedError
 
 
 @transaction.atomic
 def unapprove(invoice: Invoice, user) -> bool:
-    """Withdraw this user's approvals on the invoice. False if they had none. (Layer 3)"""
-    # TODO Layer 3
+    """Withdraw this user's approvals on the invoice. False if they had none. (Layer 5)"""
+    # TODO Layer 5
     raise NotImplementedError

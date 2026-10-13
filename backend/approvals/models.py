@@ -25,14 +25,10 @@ class Invoice(models.Model):
 
 
 class Approval(models.Model):
-    """One row per (invoice, policy, approver) - the ObjectApproval equivalent."""
+    """TODO Layer 1 - design this model. See BRIEF.md for what it must record.
 
-    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="approvals")
-    policy = models.ForeignKey(Policy, on_delete=models.CASCADE)
-    approver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="approvals")
-    state = models.CharField(max_length=20)  # waiting|active|approved|inactive
-    approved_at = models.DateTimeField(null=True)
-
-    class Meta:
-        constraints = [models.UniqueConstraint(fields=["invoice", "policy", "approver"], name="uniq_approval")]
-        indexes = [models.Index(fields=["approver", "state"])]
+    The given code relies on:
+      - `invoice.approvals` - the reverse accessor from Invoice
+      - fields `policy`, `approver` (a django.contrib.auth User) and `state`
+    Everything else - extra fields, constraints, indexes, on_delete - is your call.
+    """

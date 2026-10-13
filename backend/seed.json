@@ -1,0 +1,55 @@
+{
+  "users": ["bob", "carol", "dave", "erin", "frank"],
+  "policies": [
+    {"id": 1, "name": "Food vendors", "locations": ["Downtown", "Airport"], "is_enabled": true, "min_approvals": 1,
+     "approvers": ["bob"],
+     "conditions": [
+       {"subject": "vendor", "operator": "eq", "value": "Sysco"},
+       {"subject": "vendor", "operator": "eq", "value": "US Foods"}
+     ]},
+    {"id": 2, "name": "Mid spend", "locations": ["Downtown", "Airport"], "is_enabled": true, "min_approvals": 1,
+     "approvers": ["carol", "dave"],
+     "conditions": [
+       {"subject": "total_amount", "operator": "gte", "value": "1000.00"},
+       {"subject": "total_amount", "operator": "lte", "value": "10000.00"}
+     ]},
+    {"id": 3, "name": "Big spend", "locations": ["Downtown", "Airport"], "is_enabled": true, "min_approvals": 2,
+     "approvers": ["dave", "erin"],
+     "conditions": [
+       {"subject": "total_amount", "operator": "gte", "value": "10000.00"}
+     ]},
+    {"id": 4, "name": "CFO sign-off", "locations": ["Downtown", "Airport"], "is_enabled": true, "min_approvals": 1,
+     "approvers": ["frank"],
+     "conditions": [
+       {"subject": "has_policy", "operator": "eq", "value": "3"},
+       {"subject": "vendor_is_not", "operator": "eq", "value": "Ecolab"}
+     ]},
+    {"id": 5, "name": "Downtown non-food", "locations": ["Downtown"], "is_enabled": true, "min_approvals": 1,
+     "approvers": ["erin"],
+     "conditions": [
+       {"subject": "vendor_is_not", "operator": "eq", "value": "Sysco"},
+       {"subject": "vendor_is_not", "operator": "eq", "value": "US Foods"}
+     ]},
+    {"id": 6, "name": "Catch-all", "locations": ["Downtown", "Airport"], "is_enabled": true, "min_approvals": 1,
+     "approvers": ["bob"],
+     "conditions": [
+       {"subject": "catch_all", "operator": "eq", "value": ""}
+     ]},
+    {"id": 7, "name": "Old airport rule", "locations": ["Airport"], "is_enabled": false, "min_approvals": 1,
+     "approvers": ["frank"],
+     "conditions": [
+       {"subject": "total_amount", "operator": "gte", "value": "0.00"}
+     ]}
+  ],
+  "invoices": [
+    {"id": 1, "vendor": "Sysco",    "location": "Downtown", "total": "250.00"},
+    {"id": 2, "vendor": "Sysco",    "location": "Airport",  "total": "1500.00"},
+    {"id": 3, "vendor": "US Foods", "location": "Downtown", "total": "1500.00"},
+    {"id": 4, "vendor": "Pepsi",    "location": "Downtown", "total": "7500.00"},
+    {"id": 5, "vendor": "Ecolab",   "location": "Airport",  "total": "25000.00"},
+    {"id": 6, "vendor": "Cintas",   "location": "Airport",  "total": "400.00"},
+    {"id": 7, "vendor": "Sysco",    "location": "Downtown", "total": "10000.00"},
+    {"id": 8, "vendor": "US Foods", "location": "Airport",  "total": "4200.00"},
+    {"id": 9, "vendor": "Pepsi",    "location": "Lakeside", "total": "800.00"}
+  ]
+}

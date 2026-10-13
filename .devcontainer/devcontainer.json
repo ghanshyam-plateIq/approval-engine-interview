@@ -1,0 +1,8 @@
+{
+    "name": "Approval Interview (Django)",
+    "image": "mcr.microsoft.com/devcontainers/python:3.12",
+    "postCreateCommand": "pip install uv && uv sync",
+    "forwardPorts": [8000],
+    "portsAttributes": {"8000": {"label": "Django"}},
+    "customizations": {"vscode": {"extensions": ["ms-python.python", "ms-python.vscode-pylance"]}}
+}

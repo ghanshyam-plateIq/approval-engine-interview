@@ -25,10 +25,13 @@ class Invoice(models.Model):
 
 
 class Approval(models.Model):
-    """TODO Layer 1 - design this model. See BRIEF.md for what it must record.
+    """TODO Level 1 - design this model. See BRIEF.md for what it must record.
 
-    The given code relies on:
-      - `invoice.approvals` - the reverse accessor from Invoice
-      - fields `policy`, `approver` (a django.contrib.auth User) and `state`
-    Everything else - extra fields, constraints, indexes, on_delete - is your call.
+    The given engine code relies on these names:
+      invoice      FK to Invoice, reverse accessor `invoice.approvals`
+      policy       FK to Policy
+      approver     FK to django.contrib.auth User
+      state        "waiting" | "active" | "approved" | "inactive"
+      approved_at  when it was approved (empty until then)
+    Everything else - constraints, on_delete, choices - is your call.
     """

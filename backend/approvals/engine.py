@@ -1,14 +1,15 @@
 """The approval engine.
 
-GIVEN - policy matching: which policies apply to an invoice (read it, you'll be asked about it).
-YOUR JOB - the approval lifecycle: apply_policies, recompute, approve, unapprove.
+GIVEN - policy matching: which policies apply to an invoice.
+GIVEN (slow) - the approval lifecycle: apply_policies, recompute, approve. Level 1: make it fast.
+YOUR JOB - unapprove (Level 3).
 """
 
-from collections import defaultdict  # noqa: F401
+from collections import defaultdict
 from decimal import Decimal
 
 from django.db import transaction
-from django.utils import timezone  # noqa: F401
+from django.utils import timezone
 
 from .models import Approval, Invoice, Policy  # noqa: F401
 
@@ -71,47 +72,81 @@ def applicable_policies(invoice, include_dependents=True):
     return sorted(applied, key=lambda p: p.id)
 
 
-# ============================================================== YOUR JOB: the lifecycle
+# ============================================================== GIVEN (works, but slow): lifecycle
 #
 # Approval.state is one of:
-#   waiting  - disabled: its policy depends on a parent policy that isn't satisfied yet (Layer 4)
+#   waiting  - disabled: its policy depends on a parent policy that isn't satisfied yet
 #   active   - in the approver's queue, can be approved
 #   approved - approved by that user
 #   inactive - its policy is already satisfied by other approvers
+#
+# Everything below is CORRECT - the hidden checks for behaviour already pass.
+# It is also SLOW: Level 1 asks you to make it fast without changing what it does.
 
 
 @transaction.atomic
 def apply_policies(invoice: Invoice) -> None:
-    """Create approval rows for every applicable policy, then set states + invoice status.
+    """Sync approval rows to the policies that apply now (keep / add / drop), then recompute."""
+    policies = applicable_policies(invoice)
+    policy_ids = [p.id for p in policies]
 
-    Layer 2: one Approval per (policy, approver) for applicable_policies(invoice, include_dependents=False).
-    Layer 4: include dependent policies - their rows start disabled (`waiting`).
-    Layer 7: keep / add / delete rows so they match the policies that apply *now*.
-    """
-    # TODO Layer 2
-    raise NotImplementedError
+    for approval in invoice.approvals.all():
+        if approval.policy_id not in policy_ids:
+            approval.delete()
+
+    for policy in policies:
+        for approver in policy.approvers.all():
+            if not Approval.objects.filter(invoice=invoice, policy=policy, approver=approver).exists():
+                Approval.objects.create(invoice=invoice, policy=policy, approver=approver, state="waiting")
+
+    recompute(invoice)
 
 
 def recompute(invoice: Invoice) -> None:
-    """Derive every non-approved row's state, and the invoice status, from what's been approved.
+    """Derive every non-approved row's state, and the invoice status, from what's been approved."""
+    satisfied = set()
+    policy_ids = set(invoice.approvals.values_list("policy_id", flat=True))
+    for policy in Policy.objects.filter(id__in=policy_ids):
+        approved = Approval.objects.filter(invoice=invoice, policy=policy, state="approved").count()
+        if approved >= policy.min_approvals:
+            satisfied.add(policy.id)
 
-    Layer 2: rows `active`; no rows -> invoice approved, otherwise pending.
-    Layer 3: satisfied policies' open rows -> `inactive`; all policies satisfied -> invoice approved.
-    Layer 4: a dependent's rows stay `waiting` until all its parent policies are satisfied.
-    """
-    # TODO Layer 2 / 3 / 4
-    raise NotImplementedError
+    for approval in invoice.approvals.all():
+        if approval.state == "approved":
+            continue
+        if approval.policy_id in satisfied:
+            approval.state = "inactive"
+        elif parent_ids(approval.policy) <= satisfied:
+            approval.state = "active"
+        else:
+            approval.state = "waiting"
+        approval.save()
+
+    invoice.status = "approved" if satisfied == policy_ids else "pending"
+    invoice.save()
 
 
 @transaction.atomic
 def approve(invoice: Invoice, user) -> bool:
-    """Approve every active approval this user holds on the invoice. False if none. (Layer 3)"""
-    # TODO Layer 3
-    raise NotImplementedError
+    """Approve every active approval this user holds on the invoice. False if they had none."""
+    approved_any = False
+    for approval in Approval.objects.filter(invoice=invoice):
+        if approval.approver.username == user.username and approval.state == "active":
+            approval.state = "approved"
+            approval.approved_at = timezone.now()
+            approval.save()
+            approved_any = True
+    if approved_any:
+        recompute(invoice)
+    return approved_any
+
+
+# ============================================================== YOUR JOB (Level 3)
 
 
 @transaction.atomic
 def unapprove(invoice: Invoice, user) -> bool:
-    """Withdraw this user's approvals on the invoice. False if they had none. (Layer 5)"""
-    # TODO Layer 5
+    """Withdraw every approval this user gave on the invoice, then re-derive states.
+    False if they had no approved rows. (Level 3)"""
+    # TODO Level 3
     raise NotImplementedError

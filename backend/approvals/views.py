@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from . import engine
@@ -37,79 +37,14 @@ def invoice_row(invoice: Invoice) -> dict:
     return {"id": invoice.id, "vendor": invoice.vendor, "location": invoice.location, "total": money(invoice.total)}
 
 
-# ---------------------------------------------------------------- Given
+# ---------------------------------------------------------------- GIVEN
 
 
 @require_GET
 def invoice_policies(request, invoice_id):
-    """GIVEN - handy for debugging: the non-dependent policies that match."""
+    """Debug helper: the non-dependent policies that match."""
     invoice = get_object_or_404(Invoice, pk=invoice_id)
     return JsonResponse({"policy_ids": [p.id for p in engine.applicable_policies(invoice, include_dependents=False)]})
-
-
-# ---------------------------------------------------------------- Layer 2
-
-
-@require_POST
-@transaction.atomic
-def submit(request, invoice_id):
-    invoice = get_object_or_404(Invoice.objects.select_for_update(), pk=invoice_id)
-    # TODO Layer 2: 409 unless draft, then engine.apply_policies(invoice)
-    return JsonResponse(serialize(invoice))
-
-
-@require_GET
-def queue(request, username):
-    user = get_object_or_404(User, username=username)
-    # TODO Layer 2: invoices where `user` has an active approval, each once, total desc then id
-    invoices = Invoice.objects.none()
-    return JsonResponse([invoice_row(i) for i in invoices], safe=False)
-
-
-# ---------------------------------------------------------------- Layer 3 + 5
-
-
-@require_POST
-@transaction.atomic
-def approve(request, invoice_id):
-    invoice = get_object_or_404(Invoice.objects.select_for_update(), pk=invoice_id)
-    user = User.objects.filter(username=body(request).get("user")).first()
-    # TODO Layer 3: 409 / 403 rules, then engine.approve(invoice, user)
-    return JsonResponse(serialize(invoice))
-
-
-@require_POST
-@transaction.atomic
-def unapprove(request, invoice_id):
-    invoice = get_object_or_404(Invoice.objects.select_for_update(), pk=invoice_id)
-    user = User.objects.filter(username=body(request).get("user")).first()
-    # TODO Layer 5: 409 / 403 rules, then engine.unapprove(invoice, user)
-    return JsonResponse(serialize(invoice))
-
-
-# ---------------------------------------------------------------- Layer 6
-
-
-@require_GET
-def approver_load(request):
-    # TODO Layer 6: one query, every approver -> {"approver", "pending_invoices", "pending_amount"}
-    rows = []
-    return JsonResponse(rows, safe=False)
-
-
-# ---------------------------------------------------------------- Layer 8 (frontend)
-
-
-@require_GET
-def users(request):
-    return JsonResponse(list(User.objects.order_by("username").values_list("username", flat=True)), safe=False)
-
-
-def inbox(request):
-    return render(request, "inbox.html")
-
-
-# ---------------------------------------------------------------- Detail (+ Layer 7)
 
 
 @require_http_methods(["GET", "PATCH"])
@@ -124,5 +59,63 @@ def invoice_detail(request, invoice_id):
         if "total" in data:
             invoice.total = Decimal(data["total"])
         invoice.save()
-        # TODO Layer 7: re-apply policies when the invoice isn't a draft
+        if invoice.status != "draft":
+            engine.apply_policies(invoice)
     return JsonResponse(serialize(invoice))
+
+
+@require_POST
+@transaction.atomic
+def submit(request, invoice_id):
+    invoice = get_object_or_404(Invoice.objects.select_for_update(), pk=invoice_id)
+    if invoice.status != "draft":
+        return JsonResponse({"error": "not a draft"}, status=409)
+    engine.apply_policies(invoice)
+    return JsonResponse(serialize(invoice))
+
+
+@require_POST
+@transaction.atomic
+def approve(request, invoice_id):
+    invoice = get_object_or_404(Invoice.objects.select_for_update(), pk=invoice_id)
+    if invoice.status != "pending":
+        return JsonResponse({"error": "invoice is not pending"}, status=409)
+    user = User.objects.filter(username=body(request).get("user")).first()
+    if user is None or not engine.approve(invoice, user):
+        return JsonResponse({"error": "nothing for you to approve"}, status=403)
+    return JsonResponse(serialize(invoice))
+
+
+# ---------------------------------------------------------------- Level 4: YOUR JOB
+
+# TODO Level 4: POST /api/invoices/<id>/unapprove/ - write the view here, then add its URL in urls.py.
+
+
+# ---------------------------------------------------------------- Level 5: GIVEN (slow)
+
+
+@require_GET
+def queue(request, username):
+    """Invoices where `username` holds an active approval, each once, total desc then id.
+
+    Level 5: make this one efficient query, and add the index it needs.
+    """
+    user = get_object_or_404(User, username=username)
+    invoices = []
+    for invoice in Invoice.objects.all():
+        for approval in invoice.approvals.all():
+            if approval.approver_id == user.id and approval.state == "active":
+                invoices.append(invoice)
+                break
+    invoices.sort(key=lambda i: (-i.total, i.id))
+    return JsonResponse([invoice_row(i) for i in invoices], safe=False)
+
+
+# ---------------------------------------------------------------- Bonus
+
+
+@require_GET
+def approver_load(request):
+    # TODO Bonus: one query, every approver -> {"approver", "pending_invoices", "pending_amount"}
+    rows = []
+    return JsonResponse(rows, safe=False)

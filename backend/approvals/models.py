@@ -25,13 +25,11 @@ class Invoice(models.Model):
 
 
 class Approval(models.Model):
-    """TODO Level 1 - design this model. See BRIEF.md for what it must record.
+    """TODO Level 1 - design this model.
 
-    The given engine code relies on these names:
-      invoice      FK to Invoice, reverse accessor `invoice.approvals`
-      policy       FK to Policy
-      approver     FK to django.contrib.auth User
-      state        "waiting" | "active" | "approved" | "inactive"
-      approved_at  when it was approved (empty until then)
-    Everything else - constraints, on_delete, choices - is your call.
+    Design a model that can answer, for any invoice:
+      - which policies were applied to it
+      - who the approvers are for each policy
+      - who has approved, and when
+      - what is still waiting on whom
     """
